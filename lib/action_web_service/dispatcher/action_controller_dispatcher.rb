@@ -63,18 +63,18 @@ module ActionWebService # :nodoc:
               end
               log_request(ws_request, request.raw_post)
               if exception
-                Rails.logger.debug(exception) unless Rails.logger.nil?
+                Rails.logger.error(exception) unless logger.nil?
                 send_web_service_error_response(ws_request, exception)
               else
                 send_web_service_response(ws_response, bm.real)
               end
             else
               exception ||= DispatcherError.new("Malformed SOAP or XML-RPC protocol message")
-              Rails.logger.debug(exception) unless Rails.logger.nil?
+              Rails.logger.error(exception) unless logger.nil?
               send_web_service_error_response(ws_request, exception)
             end
           rescue Exception => e
-            Rails.logger.debug(e) unless Rails.logger.nil?
+            Rails.logger.error(e) unless logger.nil?
             send_web_service_error_response(ws_request, e)
           end
 
@@ -114,7 +114,7 @@ module ActionWebService # :nodoc:
           end
 
           def log_request(ws_request, body)
-            unless Rails.logger.nil?
+            unless logger.nil?
               name = ws_request.method_name
               api_method = ws_request.api_method
               params = ws_request.method_params
@@ -124,16 +124,16 @@ module ActionWebService # :nodoc:
                 params = params.map{ |param| param.inspect }
               end
               service = ws_request.service_name
-              Rails.logger.debug("\nWeb Service Request: #{name}(#{params.join(", ")}) Entrypoint: #{service}")
-              Rails.logger.debug(indent(body))
+              logger.debug("\nWeb Service Request: #{name}(#{params.join(", ")}) Entrypoint: #{service}")
+              logger.debug(indent(body))
             end
           end
 
           def log_response(ws_response, elapsed=nil)
-            unless Rails.logger.nil?
+            unless logger.nil?
               elapsed = (elapsed ? " (%f):" % elapsed : ":")
-              Rails.logger.debug("\nWeb Service Response" + elapsed + " => #{ws_response.return_value.inspect}")
-              Rails.logger.debug(indent(ws_response.body))
+              logger.debug("\nWeb Service Response" + elapsed + " => #{ws_response.return_value.inspect}")
+              logger.debug(indent(ws_response.body))
             end
           end
 
@@ -155,8 +155,7 @@ module ActionWebService # :nodoc:
               options = { :type => 'text/xml', :disposition => 'inline' }
               send_data(to_wsdl, options)
             rescue Exception => e
-              Rails.logger.debug(e) unless Rails.logger.nil?
-              throw e
+              Rails.logger.error(e) unless logger.nil?
             end
           elsif request.post?
             render :status => 500, :text => 'POST not supported'
@@ -166,7 +165,7 @@ module ActionWebService # :nodoc:
         private
           def base_uri
             host = request.host_with_port
-            relative_url_root = Rails.configuration.action_controller[:relative_url_root]
+            relative_url_root = self.config.relative_url_root
             scheme = request.ssl? ? 'https' : 'http'
             '%s://%s%s/%s/' % [scheme, host, relative_url_root, self.class.controller_path]
           end
@@ -184,7 +183,7 @@ module ActionWebService # :nodoc:
             case dispatching_mode
             when :direct
               api = self.class.web_service_api
-              web_service_name = controller_name.sub(/Controller$/, '').underscore
+              web_service_name = self.class.name.sub(/Controller$/, '').underscore
               apis[web_service_name] = [api, register_api(api, marshaler)]
             when :delegated, :layered
               self.class.web_services.each do |web_service_name, info|
